@@ -88,7 +88,6 @@ public class MainActivity extends ListActivity {
             } else {
                 synchronized (holes) {
                     holes[shot].setStatus(OCCUPIED);
-                    holes[shot].setwThreadName(code);
                     holes[shot].setColor(msg.arg2);
                 }
                 //debugging purpose
@@ -174,12 +173,12 @@ public class MainActivity extends ListActivity {
         setContentView(R.layout.activity_main);
         holes = new Hole[50];
         for(int i=0; i<50; i++) {
-            holes[i] = new Hole(R.drawable.black, "");
+            holes[i] = new Hole(R.drawable.black);
         }
         //determine wining hole and set its color to green
         winningHole = new Random().nextInt(50);
         winningHoleGroup = findGroup(winningHole);
-        holes[winningHole] = new Hole(R.drawable.black, "");
+        holes[winningHole] = new Hole(R.drawable.green);
         setListAdapter(new MyAdapter<Hole>(this, holes));
         System.out.println(winningHole);
         startButton = (Button) findViewById(R.id.start_button);

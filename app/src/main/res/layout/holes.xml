@@ -10,21 +10,10 @@
 
     <TextView
         android:id="@+id/hole"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Player 2"
         android:textColor="@color/blue"
         android:gravity="center_horizontal"
         android:layout_marginStart="8dp" />
-
-    <TextView
-        android:id="@+id/response"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text=""
-        android:layout_marginStart="8dp"
-        app:layout_constraintStart_toEndOf="@id/hole"
-
-         />
-
 </LinearLayout>

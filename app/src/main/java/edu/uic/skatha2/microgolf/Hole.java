@@ -7,30 +7,11 @@ import android.app.Activity;
  */
 
 class Hole {
-    private int wThreadName;
-    private String response;
     private String status = MainActivity.NOT_OCCUPIED;
     private int color;
 
-    public Hole(int color, String response) {
+    public Hole(int color) {
         this.color = color;
-        this.response = response;
-    }
-
-    public String getResponse() {
-        return response;
-    }
-
-    public void setResponse(String response) {
-        this.response = response;
-    }
-
-    public int getwThreadName() {
-        return wThreadName;
-    }
-
-    public void setwThreadName(int wThreadName) {
-        this.wThreadName = wThreadName;
     }
 
     public String getStatus() {
