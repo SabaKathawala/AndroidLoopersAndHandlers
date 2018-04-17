@@ -1,13 +1,16 @@
 package edu.uic.skatha2.microgolf;
 
-import android.app.Activity;
-
 /**
  * Created by sabask on 4/14/18.
+ *
+ * Represents each hole in the array of holes
  */
 
 class Hole {
+    //representing state(OCCUPIED, NOT_OCCUPIED) of the Hole
     private String status = MainActivity.NOT_OCCUPIED;
+
+    //representing color(BLUE: Player 1, RED: Player 2, BLACK: NOT_OCCUPIED, GREEN: Winning Hole) of the Hole
     private int color;
 
     public Hole(int color) {

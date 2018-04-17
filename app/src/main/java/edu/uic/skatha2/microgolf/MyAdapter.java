@@ -8,8 +8,6 @@ import android.widget.ListAdapter;
 
 import android.widget.ArrayAdapter;
 import android.content.Context;
-import java.util.List;
-import java.util.ArrayList;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.LayoutInflater;

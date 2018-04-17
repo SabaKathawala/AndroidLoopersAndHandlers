@@ -19,34 +19,59 @@ import java.util.Set;
 
 public class MainActivity extends ListActivity {
 
-    public static final int START_GAME = 100;
+    // state of each hole
     public static final String OCCUPIED = "1";
     public static final String NOT_OCCUPIED = "0";
-    private static final String JACKPOT = "JACKPOT";
-    private static final String NEAR_MISS = "NEAR MISS";
-    private static final String NEAR_GROUP = "NEAR GROUP";
-    private static final String BAD_MISS = "BAD MISS";
-    private static final String CATASTROPHE = "CATASTROPHE";
-    private static final int NEAR_MISS_CODE = 200;
-    private static final int NEAR_GROUP_CODE = 300;
-    private static final int BAD_MISS_CODE = 400;
-    private ShooterThread1 one;
-    private ShooterThread2 two;
+
+    // four response strings and their code
+    public static final String JACKPOT = "JACKPOT";
+    public static final String NEAR_MISS = "NEAR MISS";
+    public static final int NEAR_MISS_CODE = 200;
+    public static final String NEAR_GROUP = "NEAR GROUP";
+    public static final int NEAR_GROUP_CODE = 300;
+    public static final String BAD_MISS = "BAD MISS";
+    public static final int BAD_MISS_CODE = 400;
+    public static final String CATASTROPHE = "CATASTROPHE";
+
+    // references to the two player threads
+    private PlayerThreadOne playerThreadOne;
+    private PlayerThreadTwo playerThreadTwo;
+
+    // references to UI elements
     private Button startButton;
-    private static Boolean gameOver = false;
-    public static int winningHole;
-    private static int[] groups = {10, 20, 30, 40, 50};
+    private ListView player1;
+    private ListView player2;
+    private TextView status;
+    private TextView winningHoleText;
+
+    // to check if game is over
+    private Boolean gameOver = false;
+
+    // to hold group limits
+    private int[] groups = {10, 20, 30, 40, 50};
+
+    // to hold winning hole position
+    private int winningHole;
+
+    // to hold group of winning hole
     private  int winningHoleGroup;
+
+    // to hold shot played by each player
+    private ArrayList<Integer> player1Shots;
+    private ArrayList<Integer> player2Shots;
+
+    // to synchronize the threads
     Object threadOne = new Object();
     Object threadTwo = new Object();
     boolean turn = true;
+
+    // array of holes for ListView
     private Hole[] holes;
-    private ListView player1;
-    private ListView player2;
+
     private MainActivity context;
 
-    // find group of the hole
-    private static int findGroup(int shot) {
+    // find group of the hole shot
+    private int findGroup(int shot) {
         for(int i=0; i < groups.length; i++) {
             if(shot < groups[i]) {
                 return i;
@@ -65,96 +90,7 @@ public class MainActivity extends ListActivity {
         return holes[shot].getStatus() == OCCUPIED;
     }
 
-    public Handler mHandler = new Handler() {
-        //what: shot played
-        //arg1: thread code
-        //arg2 thread color
-        public void handleMessage(Message msg) {
-            int shot = msg.what;
-
-            if(shot == START_GAME) {
-                one.myHandler.postAtFrontOfQueue(new Runnable() {
-                    @Override
-                    public void run() {
-                        one.playShot();
-                    }
-                });
-                return;
-            }
-            int code = msg.arg1;
-            updatePlayersListView(shot, code);
-            String response;
-            if(isWinningHole(shot)) {
-                endGame();
-                Toast.makeText(context, "Player: " + code + " won", Toast.LENGTH_LONG).show();
-                gameOver = true;
-                status.setText("Player: " + code + " Shot: " + (shot+1) + " " + JACKPOT);
-                return;
-            } else if(isOccupied(shot)) {
-                endGame();
-                Toast.makeText(context, "Player: " + (code == 1 ? 2 : 1) + " won", Toast.LENGTH_LONG).show();
-                gameOver = true;
-                status.setText("Player: " + code + "| Shot: " + (shot+1) + "| " + CATASTROPHE);
-                return;
-            } else {
-                holes[shot].setStatus(OCCUPIED);
-                holes[shot].setColor(msg.arg2);
-                //debugging purpose
-                System.out.println(shot);
-                //update holes listView
-                ((BaseAdapter) getListView().getAdapter()).notifyDataSetChanged();
-            }
-
-            //send response to worker thread
-            int group = findGroup(shot);
-            int responseCode;
-            if(group == winningHoleGroup) {
-                response = NEAR_MISS;
-                responseCode = NEAR_MISS_CODE;
-            } else if(group+1 == winningHoleGroup || group-1 == winningHoleGroup){
-                response = NEAR_GROUP;
-                responseCode = NEAR_GROUP_CODE;
-            } else {
-                response = BAD_MISS;
-                responseCode = BAD_MISS_CODE;
-            }
-
-            status.setText("Player: " + msg.arg1 + "| Shot: " + (shot+1) + "| " + response);
-            Handler handler;
-            Message message;
-            switch (msg.arg1) {
-                case 1:
-                    //send response
-                    message = one.myHandler.obtainMessage();
-                    message.what = responseCode;
-                    one.myHandler.sendMessage(message);
-                    //send a runnable to play shot to next player
-                    two.myHandler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            two.playShot();
-                        }
-                    });
-
-                    break;
-                case 2:
-                    //send response
-                    handler = two.myHandler;
-                    message = handler.obtainMessage();
-                    message.what = responseCode;
-                    handler.sendMessage(message);
-                    //send a runnable to play shot to next playe
-                    one.myHandler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            one.playShot();
-                        }
-                    });
-                    break;
-            }
-        }
-    }	; // Handler is associated with UI Thread
-
+    // update the corresponding ListView for player
     private void updatePlayersListView(int shot, int code) {
         switch (code) {
             case 1:
@@ -170,44 +106,130 @@ public class MainActivity extends ListActivity {
 
     }
 
-    private TextView status;
-    private ArrayList<Integer> player1Shots;
-    private ArrayList<Integer> player2Shots;
-    private TextView winningHoleText;
+    // Handler is associated with UI Thread
+    public Handler mHandler = new Handler() {
+        //what: shot played
+        //arg1: thread code
+        //arg2 thread color
+        public void handleMessage(Message msg) {
+            int shot = msg.what;
+            int code = msg.arg1;
+            updatePlayersListView(shot, code);
+            String response;
+
+            //if winningHole shot: display winner and end game
+            if(isWinningHole(shot)) {
+                endGame();
+                Toast.makeText(context, "Player: " + code + " won", Toast.LENGTH_LONG).show();
+                gameOver = true;
+                status.setText("Player: " + code + " Shot: " + (shot+1) + " " + JACKPOT);
+                return;
+            }
+            //if already occupied hole shot: display winner and end game
+            else if(isOccupied(shot)) {
+                endGame();
+                Toast.makeText(context, "Player: " + (code == 1 ? 2 : 1) + " won", Toast.LENGTH_LONG).show();
+                gameOver = true;
+                status.setText("Player: " + code + "| Shot: " + (shot+1) + "| " + CATASTROPHE);
+                return;
+            }
+            // color the hole
+            else {
+                holes[shot].setStatus(OCCUPIED);
+                holes[shot].setColor(msg.arg2);
+                //update holes listView
+                ((BaseAdapter) getListView().getAdapter()).notifyDataSetChanged();
+            }
+
+            //identify the type of shot
+            int group = findGroup(shot);
+            int responseCode;
+            if(group == winningHoleGroup) {
+                response = NEAR_MISS;
+                responseCode = NEAR_MISS_CODE;
+            } else if(group+1 == winningHoleGroup || group-1 == winningHoleGroup){
+                response = NEAR_GROUP;
+                responseCode = NEAR_GROUP_CODE;
+            } else {
+                response = BAD_MISS;
+                responseCode = BAD_MISS_CODE;
+            }
+
+            status.setText("Player: " + msg.arg1 + "| Shot: " + (shot+1) + "| " + response);
+
+            Message message;
+            //send response to worker thread
+            switch (msg.arg1) {
+                case 1:
+                    message = playerThreadOne.myHandler.obtainMessage();
+                    message.what = responseCode;
+                    playerThreadOne.myHandler.sendMessage(message);
+                    //send a runnable to play shot to next player
+                    playerThreadTwo.myHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            playerThreadTwo.playShot();
+                        }
+                    });
+
+                    break;
+                case 2:
+                    message = playerThreadTwo.myHandler.obtainMessage();
+                    message.what = responseCode;
+                    playerThreadTwo.myHandler.sendMessage(message);
+                    //send a runnable to play shot to next player
+                    playerThreadOne.myHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            playerThreadOne.playShot();
+                        }
+                    });
+                    break;
+            }
+        }
+    };
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         context = this;
         setContentView(R.layout.activity_main);
+
+        //Initialize UI elements references
         startButton = (Button) findViewById(R.id.start_button);
         winningHoleText = (TextView) findViewById(R.id.winning_hole);
         player1 = (ListView) findViewById(R.id.player1);
         player2 = (ListView) findViewById(R.id.player2);
         status = (TextView) findViewById((R.id.status));
 
+        //initilialize game settings
         initializeSettings();
+
+        //set listener
         startButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
 
+                //restart game
                 if(gameOver) {
                     initializeSettings();
                 }
 
-                one = new ShooterThread1("A");
-                one.start();
+                //start the threads
+                playerThreadOne = new PlayerThreadOne("1");
+                playerThreadOne.start();
 
-                two = new ShooterThread2("B");
-                two.start();
-//
-//                Message msg = mHandler.obtainMessage(START_GAME);
-//                mHandler.sendMessage(msg);
+                playerThreadTwo = new PlayerThreadTwo("2");
+                playerThreadTwo.start();
+
             }
         });
     }
 
+    //initialize all variables to start game
     private void initializeSettings() {
         gameOver = false;
+
         holes = new Hole[50];
         for(int i=0; i<50; i++) {
             holes[i] = new Hole(R.drawable.black);
@@ -216,27 +238,33 @@ public class MainActivity extends ListActivity {
         winningHole = new Random().nextInt(50);
         winningHoleGroup = findGroup(winningHole);
         holes[winningHole] = new Hole(R.drawable.green);
+        setListAdapter(new MyAdapter<Hole>(this, holes));
         winningHoleText.setText("Winning Hole: " + (winningHole+1));
+
         player1Shots = new ArrayList<>();
         player2Shots = new ArrayList<>();
-        setListAdapter(new MyAdapter<Hole>(this, holes));
         player1.setAdapter(new ArrayAdapter<Integer>(this, R.layout.player_shots, player1Shots));
         player2.setAdapter(new ArrayAdapter<Integer>(this, R.layout.player_shots, player2Shots));
 
     }
 
 
-    public class ShooterThread1 extends Thread {
+    public class PlayerThreadOne extends Thread {
         private static final int COLOR = R.drawable.blue;
         // handler associated with this thread
         public Handler myHandler;
+        // player name
         private static final int ME = 1;
+        // lastShot played by the player
         private int lastShot;
+
+        // set of unique shots
         private LinkedHashSet<Integer> shotsPlayed = new LinkedHashSet<>();
-        Object looper = new Object();
+
+        // the type of shot played
         private int response;
 
-        public ShooterThread1(String name) {
+        public PlayerThreadOne(String name) {
             super(name);
         }
 
@@ -252,8 +280,8 @@ public class MainActivity extends ListActivity {
             synchronized (gameOver) {
                 synchronized (threadTwo) {
                     if (!gameOver) {
-                        Random shots = new Random();
-                        int shot = shots.nextInt(50);
+                        // play first shot: random
+                        int shot = randomShot(shotsPlayed);
                         lastShot = shot;
                         Message msg = mHandler.obtainMessage(shot);
                         msg.arg1 = ME;
@@ -338,7 +366,7 @@ public class MainActivity extends ListActivity {
         }
     }
 
-    public class ShooterThread2 extends Thread {
+    public class PlayerThreadTwo extends Thread {
         private static final int COLOR = R.drawable.red;
         // handler associated with this thread
         public Handler myHandler;
@@ -348,7 +376,7 @@ public class MainActivity extends ListActivity {
         private LinkedHashSet<Integer> shotsPlayed = new LinkedHashSet<>();
         private int response;
 
-        public ShooterThread2(String name) {
+        public PlayerThreadTwo(String name) {
             super(name);
         }
 
@@ -364,8 +392,8 @@ public class MainActivity extends ListActivity {
             synchronized (gameOver) {
                 synchronized (threadTwo) {
                     if (!gameOver) {
-                        Random shots = new Random();
-                        int shot = shots.nextInt(50);
+                        //play first shot : RANDOM
+                        int shot = randomShot(shotsPlayed);
                         lastShot = shot;
                         Message msg = mHandler.obtainMessage(shot);
                         msg.arg1 = ME;
@@ -387,7 +415,6 @@ public class MainActivity extends ListActivity {
             }
              //keep thread running till game is not over
             while(!gameOver);
-            Looper.myLooper().quit();
         }
 
         // playing strategy:
@@ -450,6 +477,7 @@ public class MainActivity extends ListActivity {
         }
     }
 
+    // find a random shot
     private int randomShot(LinkedHashSet<Integer> shotsPlayed) {
         Random shot = new Random();
         int nextShot = shot.nextInt(50);
@@ -459,6 +487,7 @@ public class MainActivity extends ListActivity {
         return nextShot;
     }
 
+    // find shot in adjacent group
     private int closeGroup(int lastShot, LinkedHashSet<Integer> shotsPlayed) {
         int group = findGroup(lastShot);
         int start = group == 0 ? group : (group-1)*10;
@@ -473,6 +502,7 @@ public class MainActivity extends ListActivity {
         return nextShot;
     }
 
+    // find shot in same group
     private int sameGroup(int lastShot, Set<Integer> shotsPlayed) {
         int group = findGroup(lastShot);
         int nextShot = -1;
@@ -485,27 +515,19 @@ public class MainActivity extends ListActivity {
         return nextShot;
     }
 
-
-
-    private Thread getCurrentShooter(int code) {
-        return code == 1 ? one : two;
-    }
-
+    //quit loopers
     private void endGame() {
-        two.myHandler.postAtFrontOfQueue(new Runnable() {
+        playerThreadTwo.myHandler.postAtFrontOfQueue(new Runnable() {
             @Override
             public void run() {
-                two.myHandler.getLooper().quit();
+                playerThreadTwo.myHandler.getLooper().quit();
             }
         });
-        one.myHandler.postAtFrontOfQueue(new Runnable() {
+        playerThreadOne.myHandler.postAtFrontOfQueue(new Runnable() {
             @Override
             public void run() {
-                one.myHandler.getLooper().quit();
+                playerThreadOne.myHandler.getLooper().quit();
             }
         });
     }
-
-
-
 }
