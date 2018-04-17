@@ -19,6 +19,7 @@ import java.util.Set;
 
 public class MainActivity extends ListActivity {
 
+    public static final int START_GAME = 100;
     public static final String OCCUPIED = "1";
     public static final String NOT_OCCUPIED = "0";
     private static final String JACKPOT = "JACKPOT";
@@ -70,6 +71,16 @@ public class MainActivity extends ListActivity {
         //arg2 thread color
         public void handleMessage(Message msg) {
             int shot = msg.what;
+
+            if(shot == START_GAME) {
+                one.myHandler.postAtFrontOfQueue(new Runnable() {
+                    @Override
+                    public void run() {
+                        one.playShot();
+                    }
+                });
+                return;
+            }
             int code = msg.arg1;
             updatePlayersListView(shot, code);
             String response;
@@ -77,19 +88,17 @@ public class MainActivity extends ListActivity {
                 endGame();
                 Toast.makeText(context, "Player: " + code + " won", Toast.LENGTH_LONG).show();
                 gameOver = true;
-                status.setText("Player: " + code + " Shot: " + shot + " " + JACKPOT);
+                status.setText("Player: " + code + " Shot: " + (shot+1) + " " + JACKPOT);
                 return;
             } else if(isOccupied(shot)) {
                 endGame();
                 Toast.makeText(context, "Player: " + (code == 1 ? 2 : 1) + " won", Toast.LENGTH_LONG).show();
                 gameOver = true;
-                status.setText("Player: " + code + "| Shot: " + shot + "| " + CATASTROPHE);
+                status.setText("Player: " + code + "| Shot: " + (shot+1) + "| " + CATASTROPHE);
                 return;
             } else {
-                synchronized (holes) {
-                    holes[shot].setStatus(OCCUPIED);
-                    holes[shot].setColor(msg.arg2);
-                }
+                holes[shot].setStatus(OCCUPIED);
+                holes[shot].setColor(msg.arg2);
                 //debugging purpose
                 System.out.println(shot);
                 //update holes listView
@@ -110,7 +119,7 @@ public class MainActivity extends ListActivity {
                 responseCode = BAD_MISS_CODE;
             }
 
-            status.setText("Player: " + msg.arg1 + "| Shot: " + shot + "| " + response);
+            status.setText("Player: " + msg.arg1 + "| Shot: " + (shot+1) + "| " + response);
             Handler handler;
             Message message;
             switch (msg.arg1) {
@@ -149,12 +158,12 @@ public class MainActivity extends ListActivity {
     private void updatePlayersListView(int shot, int code) {
         switch (code) {
             case 1:
-                player1Shots.add(shot);
+                player1Shots.add(shot+1);
                 ((BaseAdapter) player1.getAdapter()).notifyDataSetChanged();
                 break;
 
             case 2:
-                player2Shots.add(shot);
+                player2Shots.add(shot+1);
                 ((BaseAdapter) player2.getAdapter()).notifyDataSetChanged();
                 break;
         }
@@ -171,6 +180,34 @@ public class MainActivity extends ListActivity {
         super.onCreate(savedInstanceState);
         context = this;
         setContentView(R.layout.activity_main);
+        startButton = (Button) findViewById(R.id.start_button);
+        winningHoleText = (TextView) findViewById(R.id.winning_hole);
+        player1 = (ListView) findViewById(R.id.player1);
+        player2 = (ListView) findViewById(R.id.player2);
+        status = (TextView) findViewById((R.id.status));
+
+        initializeSettings();
+        startButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+
+                if(gameOver) {
+                    initializeSettings();
+                }
+
+                one = new ShooterThread1("A");
+                one.start();
+
+                two = new ShooterThread2("B");
+                two.start();
+//
+//                Message msg = mHandler.obtainMessage(START_GAME);
+//                mHandler.sendMessage(msg);
+            }
+        });
+    }
+
+    private void initializeSettings() {
+        gameOver = false;
         holes = new Hole[50];
         for(int i=0; i<50; i++) {
             holes[i] = new Hole(R.drawable.black);
@@ -179,30 +216,13 @@ public class MainActivity extends ListActivity {
         winningHole = new Random().nextInt(50);
         winningHoleGroup = findGroup(winningHole);
         holes[winningHole] = new Hole(R.drawable.green);
-        setListAdapter(new MyAdapter<Hole>(this, holes));
-        System.out.println(winningHole);
-        startButton = (Button) findViewById(R.id.start_button);
-        winningHoleText = (TextView) findViewById(R.id.winning_hole);
-        winningHoleText.setText("Winning hole: "+ winningHole);
-        player1 = (ListView) findViewById(R.id.player1);
-        player2 = (ListView) findViewById(R.id.player2);
-
+        winningHoleText.setText("Winning Hole: " + (winningHole+1));
         player1Shots = new ArrayList<>();
         player2Shots = new ArrayList<>();
+        setListAdapter(new MyAdapter<Hole>(this, holes));
         player1.setAdapter(new ArrayAdapter<Integer>(this, R.layout.player_shots, player1Shots));
         player2.setAdapter(new ArrayAdapter<Integer>(this, R.layout.player_shots, player2Shots));
 
-        status = (TextView) findViewById((R.id.status));
-        startButton.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-
-                one = new ShooterThread1("A");
-                one.start();
-
-                two = new ShooterThread2("B");
-                two.start();
-            }
-        });
     }
 
 
@@ -242,13 +262,7 @@ public class MainActivity extends ListActivity {
                         shotsPlayed.add(shot);
                         turn = true;
                         try {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                    } else {
-                        try {
-                            this.join();
+                            Thread.sleep(1500);
                         } catch (InterruptedException e) {
                             e.printStackTrace();
                         }
@@ -264,6 +278,10 @@ public class MainActivity extends ListActivity {
             Looper.myLooper().quit();
         }
 
+        // playing strategy:
+        // NEAR_MISS: SAME GROUP
+        // NEAR_GROUP: RANDOM
+        // BAD MISS: CLOSE GROUP
         public void playShot() {
             synchronized (threadTwo) {
                 if (!gameOver) {
@@ -272,7 +290,7 @@ public class MainActivity extends ListActivity {
                             threadTwo.wait();
                         }
                         turn = false;
-                        Thread.sleep(2000);
+                        Thread.sleep(1500);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -282,38 +300,34 @@ public class MainActivity extends ListActivity {
                         case NEAR_MISS_CODE:
                             nextShot = sameGroup(lastShot, shotsPlayed);
                             if (nextShot == -1) {
-                                synchronized (holes) {
-                                    nextShot = randomShot(shotsPlayed);
-                                    msg = mHandler.obtainMessage(nextShot);
-                                    msg.arg1 = ME;
-                                    msg.arg2 = COLOR;
-                                    mHandler.sendMessage(msg);
-                                    shotsPlayed.add(nextShot);
-                                }
+                                nextShot = randomShot(shotsPlayed);
+                                msg = mHandler.obtainMessage(nextShot);
+                                msg.arg1 = ME;
+                                msg.arg2 = COLOR;
+                                mHandler.sendMessage(msg);
+                                shotsPlayed.add(nextShot);
                             }
                             break;
 
                         case NEAR_GROUP_CODE:
-                            nextShot = closeGroup(lastShot, shotsPlayed);
-                            if (nextShot == -1) {
-                                synchronized (holes) {
-                                    nextShot = randomShot(shotsPlayed);
-                                    msg = mHandler.obtainMessage(nextShot);
-                                    msg.arg1 = ME;
-                                    msg.arg2 = COLOR;
-                                    mHandler.sendMessage(msg);
-                                    shotsPlayed.add(nextShot);
-                                }
-                            }
-                            break;
-
-                        case BAD_MISS_CODE:
                             nextShot = randomShot(shotsPlayed);
                             msg = mHandler.obtainMessage(nextShot);
                             msg.arg1 = ME;
                             msg.arg2 = COLOR;
                             mHandler.sendMessage(msg);
                             shotsPlayed.add(nextShot);
+                            break;
+
+                        case BAD_MISS_CODE:
+                            nextShot = closeGroup(lastShot, shotsPlayed);
+                            if (nextShot == -1) {
+                                nextShot = randomShot(shotsPlayed);
+                                msg = mHandler.obtainMessage(nextShot);
+                                msg.arg1 = ME;
+                                msg.arg2 = COLOR;
+                                mHandler.sendMessage(msg);
+                                shotsPlayed.add(nextShot);
+                            }
                             break;
                     }
                 }
@@ -360,13 +374,7 @@ public class MainActivity extends ListActivity {
                         shotsPlayed.add(shot);
                         turn = false;
                         try {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                    } else {
-                        try {
-                            this.join();
+                            Thread.sleep(1500);
                         } catch (InterruptedException e) {
                             e.printStackTrace();
                         }
@@ -382,6 +390,10 @@ public class MainActivity extends ListActivity {
             Looper.myLooper().quit();
         }
 
+        // playing strategy:
+        // NEAR_MISS: CLOSE GROUP
+        // NEAR_GROUP: CLOSE GROUP
+        // BAD MISS: RANDOM
         public void playShot() {
             synchronized (threadTwo) {
                 Message msg;
@@ -392,7 +404,7 @@ public class MainActivity extends ListActivity {
                             threadTwo.wait();
                         }
                         turn = true;
-                        Thread.sleep(2000);
+                        Thread.sleep(1500);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -400,28 +412,24 @@ public class MainActivity extends ListActivity {
                         case NEAR_MISS_CODE:
                             nextShot = closeGroup(lastShot, shotsPlayed);
                             if (nextShot == -1) {
-                                synchronized (holes) {
-                                    nextShot = randomShot(shotsPlayed);
-                                    msg = mHandler.obtainMessage(nextShot);
-                                    msg.arg1 = ME;
-                                    msg.arg2 = COLOR;
-                                    mHandler.sendMessage(msg);
-                                    shotsPlayed.add(nextShot);
-                                }
+                                nextShot = randomShot(shotsPlayed);
+                                msg = mHandler.obtainMessage(nextShot);
+                                msg.arg1 = ME;
+                                msg.arg2 = COLOR;
+                                mHandler.sendMessage(msg);
+                                shotsPlayed.add(nextShot);
                             }
                             break;
 
                         case NEAR_GROUP_CODE:
                             nextShot = closeGroup(lastShot, shotsPlayed);
                             if (nextShot == -1) {
-                                synchronized (holes) {
-                                    nextShot = randomShot(shotsPlayed);
-                                    msg = mHandler.obtainMessage(nextShot);
-                                    msg.arg1 = ME;
-                                    msg.arg2 = COLOR;
-                                    mHandler.sendMessage(msg);
-                                    shotsPlayed.add(nextShot);
-                                }
+                                nextShot = randomShot(shotsPlayed);
+                                msg = mHandler.obtainMessage(nextShot);
+                                msg.arg1 = ME;
+                                msg.arg2 = COLOR;
+                                mHandler.sendMessage(msg);
+                                shotsPlayed.add(nextShot);
                             }
                             break;
 
@@ -446,7 +454,7 @@ public class MainActivity extends ListActivity {
         Random shot = new Random();
         int nextShot = shot.nextInt(50);
         while(shotsPlayed.contains(nextShot)) {
-                nextShot = shot.nextInt(50);
+            nextShot = shot.nextInt(50);
         }
         return nextShot;
     }
@@ -457,11 +465,10 @@ public class MainActivity extends ListActivity {
         int end = group == 4 ? (group+1)*10 : (group+2)*10;
         int nextShot = -1;
         for(int i = start; i < end; i++ ) {
-            if(lastShot == i || shotsPlayed.contains(lastShot)) {
-                continue;
+            if(!shotsPlayed.contains(lastShot)) {
+                nextShot = i;
+                break;
             }
-            nextShot = i;
-            break;
         }
         return nextShot;
     }
@@ -470,11 +477,10 @@ public class MainActivity extends ListActivity {
         int group = findGroup(lastShot);
         int nextShot = -1;
         for(int i = group*10; i < group*10+10; i++ ) {
-            if(lastShot == i || shotsPlayed.contains(lastShot)) {
-                continue;
+            if(!shotsPlayed.contains(lastShot)) {
+                nextShot = i;
+                break;
             }
-            nextShot = i;
-            break;
         }
         return nextShot;
     }
